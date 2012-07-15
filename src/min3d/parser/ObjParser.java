@@ -11,6 +11,7 @@ import java.util.StringTokenizer;
 import min3d.Min3d;
 import min3d.Shared;
 import min3d.Utils;
+import min3d.core.Object3d;
 import min3d.core.Object3dContainer;
 import min3d.vos.Color4;
 import min3d.vos.Number3d;
@@ -53,7 +54,8 @@ public class ObjParser extends AParser implements IParser {
 	}
 
 	@Override
-	public void parse() {
+	public void parse() 
+	{
 		long startTime = Calendar.getInstance().getTimeInMillis();
 
 		InputStream fileIn = resources.openRawResource(resources.getIdentifier(
@@ -63,6 +65,8 @@ public class ObjParser extends AParser implements IParser {
 		String line;
 		co = new ParseObjectData(vertices, texCoords, normals);
 		parseObjects.add(co);
+		
+		HashMap<String, Integer> objMap = new HashMap<String, Integer>();
 
 		Log.d(Min3d.TAG, "Start parsing object " + resourceID);
 		Log.d(Min3d.TAG, "Start time " + startTime);
@@ -105,10 +109,12 @@ public class ObjParser extends AParser implements IParser {
 					normals.add(normal);
 				} else if (type.equals(MATERIAL_LIB)) {
 					readMaterialLib(parts.nextToken());
-				} else if (type.equals(USE_MATERIAL)) {
+				} else if (type.equals(USE_MATERIAL)) 
+				{
+					String objName = currentMaterialKey == null ? "default" : currentMaterialKey;//parts.hasMoreTokens() ? parts.nextToken() : "";
 					currentMaterialKey = parts.nextToken();
-				} else if (type.equals(OBJECT)) {
-					String objName = parts.hasMoreTokens() ? parts.nextToken() : ""; 
+				//} else if (type.equals(OBJECT)) {
+					 
 					if(firstObject)
 					{
 						Log.d(Min3d.TAG, "Create object " + objName);
@@ -119,7 +125,7 @@ public class ObjParser extends AParser implements IParser {
 					{
 						Log.d(Min3d.TAG, "Create object " + objName);
 						co = new ParseObjectData(vertices, texCoords, normals);
-						co.name = objName;
+						co.name = objName;						
 						parseObjects.add(co);
 					}
 				}
@@ -132,29 +138,62 @@ public class ObjParser extends AParser implements IParser {
 		Log.d(Min3d.TAG, "End time " + (endTime - startTime));
 	}
 
-	public Object3dContainer getParsedObject() {
+	// finally retrieve parsed 3d object
+	public Object3dContainer getParsedObject() 
+	{
 		Log.d(Min3d.TAG, "Start object creation");
 		Object3dContainer obj = new Object3dContainer(0, 0);
 		int numObjects = parseObjects.size();
+		
+		Log.i("KNX", numObjects+" objects have been parsed   "+textureAtlas.bitmaps.size()+" textures");
+		
 		Bitmap texture = null;
-
+		
+/*
 		if(textureAtlas.hasBitmaps())
 		{
 			textureAtlas.generate();
 			texture = textureAtlas.getBitmap();
 			Shared.textureManager().addTextureId(texture, textureAtlas.getId(), generateMipMap);
 		}
+*/
+		TextureAtlas textures[] = new TextureAtlas[textureAtlas.bitmaps.size()];
+		HashMap<String, TextureAtlas> texMap = new HashMap<String, AParser.TextureAtlas>();
 		
-		for (int i = 0; i < numObjects; i++) {
-			ParseObjectData o = parseObjects.get(i);
-			Log.d(Min3d.TAG, "Creating object " + o.name);
-			obj.addChild(o.getParsedObject(materialMap, textureAtlas));
+		for (int i=0;i <textures.length; i++)
+		{
+			textures[i] = new TextureAtlas();
+			textures[i].addBitmapAsset(textureAtlas.bitmaps.get(i));
+			textures[i].generate();
+			texMap.put(textureAtlas.bitmaps.get(i).key, textures[i]);
+			Log.i("KNX", "Texture "+i+" key is "+textureAtlas.bitmaps.get(i).key);
+			texture = textures[i].getBitmap();
+			Shared.textureManager().addTextureId(texture, textures[i].getId(), false);
 		}
 		
-		if(textureAtlas.hasBitmaps())
+		for (int i = 0; i < numObjects; i++) 
+		{
+			ParseObjectData o = parseObjects.get(i);
+			
+			if (o.faces.size() == 0) continue;
+			
+			Log.d(Min3d.TAG, "Creating object " + o.name);	
+			
+			String materialKey = o.faces.get(0).materialKey;
+			String texName = materialMap.get(materialKey).diffuseTextureMap;
+			Log.i("KNX", "Texture name for face: "+texName+"     material key: "+materialKey);
+			
+			Object3d model = o.getParsedObject(materialMap, texMap.get(materialKey));
+			model.colorMaterialEnabled(true);
+			model.vertexColorsEnabled(true);
+			
+			obj.addChild(model);		// add object to the container
+		}
+		
+		/*if(textureAtlas.hasBitmaps())
 		{
 			if(texture != null) texture.recycle();
-		}
+		}*/
 		Log.d(Min3d.TAG, "Object creation finished");
 		
 		cleanup();
@@ -192,10 +231,12 @@ public class ObjParser extends AParser implements IParser {
 						materialMap.put(currentMaterial, new Material(
 								currentMaterial));
 					}
-				} else if(type.equals(DIFFUSE_COLOR) && !type.equals(DIFFUSE_TEX_MAP)) {
+				} else if(type.equals(DIFFUSE_COLOR) && !type.equals(DIFFUSE_TEX_MAP)) 
+				{
 					Color4 diffuseColor = new Color4(Float.parseFloat(parts[1]) * 255.0f, Float.parseFloat(parts[2]) * 255.0f, Float.parseFloat(parts[3]) * 255.0f, 255.0f);
-					materialMap.get(currentMaterial).diffuseColor = diffuseColor;
-				} else if (type.equals(DIFFUSE_TEX_MAP)) {
+					materialMap.get(currentMaterial).diffuseColor = diffuseColor;					
+				} 
+				else if (type.equals(DIFFUSE_TEX_MAP)) {
 					if (parts.length > 1) {
 						materialMap.get(currentMaterial).diffuseTextureMap = parts[1];
 						StringBuffer texture = new StringBuffer(packageID);

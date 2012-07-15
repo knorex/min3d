@@ -69,53 +69,78 @@ public class ParseObjectData {
 	{
 		int numFaces = faces.size();
 		int faceIndex = 0;
-		boolean hasBitmaps = textureAtlas.hasBitmaps();
+		boolean hasBitmaps = textureAtlas == null ? false : textureAtlas.hasBitmaps();
 
-		for (int i = 0; i < numFaces; i++) {
+		// for all faces in the model
+		for (int i = 0; i < numFaces; i++) 
+		{
 			ParseObjectFace face = faces.get(i);
-			BitmapAsset ba = textureAtlas
-					.getBitmapAssetByName(face.materialKey);
+			BitmapAsset ba = textureAtlas == null ? null : textureAtlas.getBitmapAssetByName(face.materialKey);
 
-			for (int j = 0; j < face.faceLength; j++) {
+			//Log.i("KNX","" + i + " " + numFaces + " " + face.materialKey);
+
+			for (int j = 0; j < face.faceLength; j++) 
+			{
 				Number3d newVertex = vertices.get(face.v[j]);
 				
-				Uv newUv = face.hasuv ? texCoords.get(face.uv[j]).clone()
-						: new Uv();
-				Number3d newNormal = face.hasn ? normals.get(face.n[j])
-						: new Number3d();
+				Uv newUv = face.hasuv ? texCoords.get(face.uv[j]).clone() : new Uv();
+				Number3d newNormal = face.hasn ? normals.get(face.n[j]) : new Number3d();
 				Material material = materialMap.get(face.materialKey);
 				
-				Color4 newColor = new Color4(255, 255, 0, 255);
+				Color4 newColor = new Color4(255, 0, 0, 255);
+				
 				if(material != null && material.diffuseColor != null)
 				{
-					newColor.r = material.diffuseColor.r;
-					newColor.g = material.diffuseColor.g;
-					newColor.b = material.diffuseColor.b;
+					final short r = material.diffuseColor.r;
+					final short g = material.diffuseColor.g;
+					final short b = material.diffuseColor.b;					
+					newColor.r = r;//material.diffuseColor.r;	
+					newColor.g = g;//material.diffuseColor.g;
+					newColor.b = b;//material.diffuseColor.b;
 					newColor.a = material.diffuseColor.a;
+					//Log.i("KNX", "diffuse: "+newColor.r+" "+newColor.g+" "+newColor.b+" "+newColor.a);
 				}
-
+								
+				
 				if(hasBitmaps && (ba != null))
 				{
-					newUv.u = ba.uOffset + newUv.u * ba.uScale;
-					newUv.v = ba.vOffset + ((newUv.v + 1) * ba.vScale) - 1;
+						// new UV needs to be adjusted for the atlas, transform [0,1] to [0,1] in atlas coordspace
+						//Log.i("KNX", "Orig UV: "+newUv.u+", "+newUv.v);
+						
+						//newUv.u = Math.abs(newUv.u);
+						//newUv.v = Math.abs(newUv.v);
+						
+						//if (newUv.u > 1) newUv.u = 1;
+						//if (newUv.v > 1) newUv.v = 1;
+						
+						//Log.i("KNX", "Orig UV: "+newUv.u+", "+newUv.v);
+						
+						//newUv.u = ba.uOffset + (newUv.u) * ba.uScale;
+						//newUv.v = (ba.vOffset + (1-newUv.v) * ba.vScale);
+						
+						//Log.i("KNX", "New  UV: "+newUv.u+", "+newUv.v);
 				}
+				
 				obj.vertices().addVertex(newVertex, newUv, newNormal, newColor);
 			}
 
-			if (face.faceLength == 3) {
-				obj.faces().add(
-						new Face(faceIndex, faceIndex + 1, faceIndex + 2));
-			} else if (face.faceLength == 4) {
-				obj.faces().add(
-						new Face(faceIndex, faceIndex + 1, faceIndex + 3));
-				obj.faces().add(
-						new Face(faceIndex + 1, faceIndex + 2, faceIndex + 3));
+			// add face
+			if (face.faceLength == 3) 
+			{
+				obj.faces().add(new Face(faceIndex, faceIndex + 1, faceIndex + 2));
+			} 
+			else if (face.faceLength == 4) 
+			{
+				obj.faces().add(new Face(faceIndex, faceIndex + 1, faceIndex + 3));
+				obj.faces().add(new Face(faceIndex + 1, faceIndex + 2, faceIndex + 3));
 			}
 
 			faceIndex += face.faceLength;
 		}
 
-		if (hasBitmaps) {
+		// add texture atlas as object's texture
+		if (hasBitmaps) 
+		{			
 			obj.textures().addById(textureAtlas.getId());
 		}
 
