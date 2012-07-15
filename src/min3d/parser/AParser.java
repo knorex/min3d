@@ -42,7 +42,7 @@ public abstract class AParser implements IParser {
 	protected ArrayList<Number3d> normals;
 	protected boolean generateMipMap;
 	protected HashMap<String, Material> materialMap;
-	
+
 	public AParser()
 	{
 		vertices = new ArrayList<Number3d>();
@@ -53,7 +53,7 @@ public abstract class AParser implements IParser {
 		firstObject = true;
 		materialMap = new HashMap<String, Material>();
 	}
-	
+
 	public AParser(Resources resources, String resourceID, Boolean generateMipMap)
 	{
 		this();
@@ -63,7 +63,7 @@ public abstract class AParser implements IParser {
 			this.packageID = resourceID.split(":")[0];
 		this.generateMipMap = generateMipMap;
 	}
-	
+
 	protected void cleanup()
 	{
 		parseObjects.clear();
@@ -178,7 +178,7 @@ public abstract class AParser implements IParser {
 		/**
 		 * The texture bitmaps that should be combined into one.
 		 */
-		private ArrayList<BitmapAsset> bitmaps;
+		public ArrayList<BitmapAsset> bitmaps;
 		/**
 		 * The texture atlas bitmap
 		 */
@@ -249,36 +249,84 @@ public abstract class AParser implements IParser {
 			int numBitmaps = bitmaps.size();
 			int uOffset = 0;
 			int vOffset = 0;
-
+			
 			for (int i = 0; i < numBitmaps; i++) {
 				if(bitmaps.get(i).useForAtlasDimensions)
 					totalWidth += bitmaps.get(i).bitmap.getWidth();
 			}
+			
+			
+			
+//			atlas = Bitmap.createBitmap(totalWidth, largestBitmap.bitmap
+//					.getHeight(), Config.ARGB_8888);
+			
+			float totalHeight = largestBitmap.bitmap.getHeight();
 
-			atlas = Bitmap.createBitmap(totalWidth, largestBitmap.bitmap
-					.getHeight(), Config.ARGB_8888);
+			int scaledWidth = totalWidth;			// size of the atlas texture after resizing to pow e.g. 512
+			scaledWidth = (scaledWidth >> 1) | scaledWidth;
+			scaledWidth = (scaledWidth >> 2) | scaledWidth;
+			scaledWidth = (scaledWidth >> 4) | scaledWidth;
+			scaledWidth = (scaledWidth >> 8) | scaledWidth;
+			scaledWidth = (scaledWidth >> 16) | scaledWidth;			
+			scaledWidth += 1;
+			scaledWidth/=2;
 
-			for (int i = 0; i < numBitmaps; i++) {
+			int scaledHeight = largestBitmap.bitmap.getHeight();
+			scaledHeight = (scaledHeight >> 1) | scaledHeight;
+			scaledHeight = (scaledHeight >> 2) | scaledHeight;
+			scaledHeight = (scaledHeight >> 4) | scaledHeight;
+			scaledHeight = (scaledHeight >> 8) | scaledHeight;
+			scaledHeight = (scaledHeight >> 16) | scaledHeight;			
+			scaledHeight += 1;
+			scaledHeight/=2;
+			
+			double rW = (float)scaledWidth / totalWidth;			// fraction of the original big atlas texture
+			double rH = (float)scaledHeight / totalHeight;
+			
+			// create the texture for the new scaled atlas
+			atlas = Bitmap.createBitmap(scaledWidth, scaledHeight, Config.ARGB_8888);
+			for (int i = 0;i<scaledWidth;i++) {
+				for (int j = 0;j<scaledHeight;j++) {
+					atlas.setPixel(i, j, 0xFF0000FF);					
+				}
+			}
+
+			
+			Log.i("KNX"," totalWidth: " + totalWidth + "  scaledWidth: "+scaledWidth);
+			Log.i("KNX"," totalHeight: "+totalHeight+"  scaledHeight: "+scaledHeight);
+
+			for (int i = 0; i < numBitmaps; i++) 
+			{
+				// create texture item descriptor
 				BitmapAsset ba = bitmaps.get(i);
 				BitmapAsset existingBA = getBitmapAssetByResourceID(ba.resourceID);				
 				
 				if(ba.useForAtlasDimensions)
 				{
 					Bitmap b = ba.bitmap;
-					int w = b.getWidth();
-					int h = b.getHeight();
-					int[] pixels = new int[w * h];
 					
+					int w = (int) Math.floor(rW*b.getWidth());		// scaled down size of the texture image
+					int h = (int) Math.floor(rH*b.getHeight());
+					
+					b = Bitmap.createScaledBitmap(b, w, h, true);
+					
+					int[] pixels = new int[w * h];
+
 					b.getPixels(pixels, 0, w, 0, 0, w, h);
 					atlas.setPixels(pixels, 0, w, uOffset, vOffset, w, h);
-					
-					ba.uOffset = (float) uOffset / totalWidth;
+
+					// offset as fraction of the atlas texture size
+					ba.uOffset = (float) uOffset / (float) scaledWidth;
 					ba.vOffset = 0;
-					ba.uScale = (float) w / (float) totalWidth;
-					ba.vScale = (float) h / (float) largestBitmap.bitmap.getHeight();
+					
+					// size of texture item in relation to the atlas size
+					ba.uScale = (float) w / (float) scaledWidth;
+					ba.vScale = (float) h / (float) scaledHeight;		
 					
 					uOffset += w;
 					b.recycle();
+					
+					Log.i("KNX", "Texture #"+i+"  size: "+w+"x"+h+"   offset: "+ba.uOffset+"  scale: "+ba.uScale+", "+ba.vScale);
 				}
 				else
 				{
@@ -291,7 +339,7 @@ public abstract class AParser implements IParser {
 			/*
 			FileOutputStream fos;
 			try {
-				fos = new FileOutputStream("/data/screenshot.png");
+				fos = new FileOutputStream("/mnt/sdcard/data/screenshot.png");
 				atlas.compress(Bitmap.CompressFormat.PNG, 100, fos);
 				fos.flush();
 				fos.close();
@@ -344,7 +392,7 @@ public abstract class AParser implements IParser {
 				}
 			}
 		}
-		
+
 		/**
 		 * Returns a bitmap asset with a specified name.
 		 * 
